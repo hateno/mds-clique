@@ -1,7 +1,7 @@
-import ConfigParser
+import configparser
 
 # read configuration
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read('config.ini')
 
 CORPUS = config.get('Global', 'corpus')
