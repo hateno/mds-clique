@@ -102,3 +102,4 @@ ENV/
 *.ini
 store/
 tmp/
+*.bak
