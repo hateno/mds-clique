@@ -2,10 +2,10 @@ import logging, os, json, tvconf, argparse, math
 import lib.fastmap
 
 from distance import Distance
-from sim.util import dissim
 from sim.mycorpus import MyCorpus
-from sim.topics import load_topics, cluster_topics
+from sim.topics import load_topics, cluster_topics, dissim
 from sklearn.manifold import MDS
+from rawstress import RawStress
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
