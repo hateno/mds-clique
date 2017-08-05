@@ -1,11 +1,13 @@
 import ctypes as c
 import numpy as np
 import multiprocessing as mp
+import os
 
 from distance import Distance
 from functools import partial
 from gensim import models
 from sklearn.cluster import AgglomerativeClustering
+from sklearn.metrics.pairwise import euclidean_distances
 
 def load_topics():
     lda = models.LdaMulticore.load('store/corpus.lda')
@@ -15,16 +17,17 @@ def load_topics():
         distribution = tuple([topic_term[1] for topic_term in topic_terms])
         topic_dist[topic_num] = distribution
     topic_dist_values = np.array(list(topic_dist.values()))
-    return topic_dist_values
+    return (topic_dist, topic_dist_values)
 
+# topic agglomorative clustering
 def cluster_topics(num_clusters, topic_dist_values):
     alg = AgglomerativeClustering(n_clusters=num_clusters)
     alg.fit(topic_dist_values)
     clusters = alg.fit_predict(topic_dist_values)
     return clusters
 
+# calculate dissimilarity matrix for MDS
 def calc_distance(topics, n, shared_list, i):
-    print(i)
     tmp = shared_list[i]
     for j in range(n):
         topic_i = topics[i]
@@ -33,16 +36,56 @@ def calc_distance(topics, n, shared_list, i):
         tmp[j] = distance.tvd()
     shared_list[i] = tmp
 
-# calculate dissimilarity matrix for MDS
 def dissim(topics):
     n = len(topics)
     manager = mp.Manager()
     shared_list = manager.list([[0 for x in range(n)] for x in range(n)])
 
-    p = mp.Pool(32)
+    p = mp.Pool(os.cpu_count())
     func = partial(calc_distance, topics, n, shared_list)
     p.map(func, range(n))
     p.close()
     p.join()
 
     return list(shared_list)
+
+# stress calculation
+def calc_stress_helper(dist_matrix, point_matrix, n, shared_value, i):
+    partial_sum = 0
+    dist_row = dist_matrix[i]
+    points_row = point_matrix[i]
+    for j in range(n):
+        if i != j:
+            partial_sum += pow((dist_row[j] - points_row[j]), 2)
+    shared_value.set(shared_value.get() + partial_sum)
+
+def calc_stress(dist_matrix, points):
+    point_matrix = euclidean_distances(points)
+    point_check = sum([sum(point_matrix[i]) for i in range(len(point_matrix))])
+    print('point: ', str(point_check))
+    n = len(point_matrix)
+    manager = mp.Manager()
+    shared_value = manager.Value(c.c_double, 0)
+
+    p = mp.Pool(os.cpu_count())
+    func = partial(calc_stress_helper, dist_matrix, point_matrix, n, shared_value)
+    p.map(func, range(n))
+    p.close()
+    p.join()
+
+    return pow(shared_value.get(), 0.5)
+
+# shepard plot calculation
+def calc_shepard(dist_matrix, points):
+    point_matrix = euclidean_distances(points)
+    n = len(point_matrix)
+
+    shepard_points = []
+    for i in range(n):
+        for j in range(i):
+            if i != j:
+                original_distance = dist_matrix[i][j]
+                reduced_distance = point_matrix[i][j]
+                shepard_points.append([original_distance, reduced_distance])
+
+    return np.array(shepard_points)
