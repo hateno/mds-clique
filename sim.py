@@ -3,8 +3,9 @@ import numpy as np
 
 from distance import Distance
 from sim.fastmap import distmatrix, fastmap
+from sim.graphit import plot
 from sim.mycorpus import MyCorpus
-from sim.topics import calc_shepard, calc_stress, cluster_topics, dissim, load_topics
+from sim.topics import calc_shepard, calc_stress, cluster_topics, cluster_validation, dissim, load_topics
 from sklearn.manifold import MDS
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
@@ -15,7 +16,6 @@ parser.add_argument('type', type=str)
 args = parser.parse_args()
 
 (topic_dist, topic_dist_values) = load_topics()
-clusters = cluster_topics(10, topic_dist_values)
 
 if args.type == 'fastmap-kl':
     dist_matrix = distmatrix(list( range( len( topic_dist_values ) ) ), c = lambda x, y: Distance(topic_dist[x], topic_dist[y]).kl())
@@ -40,3 +40,10 @@ elif args.type == 'mds':
 # calculate stress and shepard
 stress = calc_stress(dist_matrix, points)
 shepard = calc_shepard(dist_matrix, points)
+
+# cluster and cluster scores
+clusters = cluster_topics(10, topic_dist_values)
+scores = cluster_validation(topic_dist_values, clusters)
+
+# plot it
+plot(points, clusters, point_clusters=False)

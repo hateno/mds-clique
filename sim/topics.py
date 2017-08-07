@@ -7,6 +7,7 @@ from distance import Distance
 from functools import partial
 from gensim import models
 from sklearn.cluster import AgglomerativeClustering
+from sklearn.metrics import silhouette_score
 from sklearn.metrics.pairwise import euclidean_distances
 
 def load_topics():
@@ -25,6 +26,12 @@ def cluster_topics(num_clusters, topic_dist_values):
     alg.fit(topic_dist_values)
     clusters = alg.fit_predict(topic_dist_values)
     return clusters
+
+# unsupervised cluster validation measure
+def cluster_validation(topic_dist_values, cluster_labels):
+    scores = {}
+    scores['silhouette'] = silhouette_score(topic_dist_values, cluster_labels)
+    return scores
 
 # calculate dissimilarity matrix for MDS
 def calc_distance(topics, n, shared_list, i):
