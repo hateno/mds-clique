@@ -1,7 +1,7 @@
 import ctypes as c
 import numpy as np
 import multiprocessing as mp
-import os
+import os, pickle
 
 from distance import Distance
 from functools import partial
@@ -9,16 +9,29 @@ from gensim import models
 from sim.jqmcvi import dunn_fast
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_score, calinski_harabaz_score
-from sklearn.metrics.pairwise import euclidean_distances
 
 def load_topics():
-    lda = models.LdaMulticore.load('store/corpus.lda')
-    topic_dist = {}
-    for topic_num in range(lda.num_topics):
-        topic_terms = lda.get_topic_terms(topic_num, topn=None)
-        distribution = tuple([topic_term[1] for topic_term in topic_terms])
-        topic_dist[topic_num] = distribution
-    topic_dist_values = np.array(list(topic_dist.values()))
+    topic_dist_pickle = 'tmp/topic_dist'
+    topic_dist_values_pickle = 'tmp/topic_dist_values'
+    if os.path.isfile(topic_dist_pickle) and os.path.isfile(topic_dist_values_pickle):
+        print('Loading from pickle...')
+        with open(topic_dist_pickle, 'rb') as f:
+            topic_dist = pickle.load(f)
+        with open(topic_dist_values_pickle, 'rb') as f:
+            topic_dist_values = pickle.load(f)
+    else:
+        print('Loading from store...')
+        lda = models.LdaMulticore.load('store/corpus.lda')
+        topic_dist = {}
+        for topic_num in range(lda.num_topics):
+            topic_terms = lda.get_topic_terms(topic_num, topn=None)
+            distribution = tuple([topic_term[1] for topic_term in topic_terms])
+            topic_dist[topic_num] = distribution
+        topic_dist_values = np.array(list(topic_dist.values()))
+        with open(topic_dist_pickle, 'wb') as f:
+            pickle.dump(topic_dist, f)
+        with open(topic_dist_values_pickle, 'wb') as f:
+            pickle.dump(topic_dist_values, f)
     return (topic_dist, topic_dist_values)
 
 # topic agglomorative clustering
@@ -60,42 +73,40 @@ def dissim(topics):
     return list(shared_list)
 
 # stress calculation
-def calc_stress_helper(dist_matrix, point_matrix, n, shared_value, i):
+def calc_stress_helper(dist_matrix, eucl_matrix, n, shared_value, i):
     partial_sum = 0
     dist_row = dist_matrix[i]
-    points_row = point_matrix[i]
+    points_row = eucl_matrix[i]
     for j in range(n):
         if i != j:
             partial_sum += pow((dist_row[j] - points_row[j]), 2)
     shared_value.set(shared_value.get() + partial_sum)
 
-def calc_stress(dist_matrix, points):
-    point_matrix = euclidean_distances(points)
-    point_check = sum([sum(point_matrix[i]) for i in range(len(point_matrix))])
-    print('point: ', str(point_check))
-    n = len(point_matrix)
-    manager = mp.Manager()
-    shared_value = manager.Value(c.c_double, 0)
+def calc_stress(dist_matrix, eucl_matrix):
+    stress = ((eucl_matrix.ravel() - dist_matrix.ravel()) ** 2).sum() / 2
+    return stress
 
-    p = mp.Pool(os.cpu_count())
-    func = partial(calc_stress_helper, dist_matrix, point_matrix, n, shared_value)
-    p.map(func, range(n))
-    p.close()
-    p.join()
+def list_stress_points(dist_matrix, eucl_matrix):
+    points_stress = []
+    for i, point in enumerate(eucl_matrix):
+        dist = dist_matrix[i]
+        stress = ((point - dist) ** 2).sum() / 2
+        point_stress = (i, stress)
+        points_stress.append(point_stress)
 
-    return pow(shared_value.get(), 0.5)
+    points_stress_sorted = sorted(points_stress, key=lambda tup: tup[1])
+    return points_stress_sorted
 
 # shepard plot calculation
-def calc_shepard(dist_matrix, points):
-    point_matrix = euclidean_distances(points)
-    n = len(point_matrix)
+def calc_shepard(dist_matrix, eucl_matrix):
+    n = len(eucl_matrix)
 
     shepard_points = []
     for i in range(n):
         for j in range(i):
             if i != j:
                 original_distance = dist_matrix[i][j]
-                reduced_distance = point_matrix[i][j]
+                reduced_distance = eucl_matrix[i][j]
                 shepard_points.append([original_distance, reduced_distance])
 
     return np.array(shepard_points)
