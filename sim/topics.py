@@ -6,8 +6,9 @@ import os
 from distance import Distance
 from functools import partial
 from gensim import models
+from sim.jqmcvi import dunn_fast
 from sklearn.cluster import AgglomerativeClustering
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_score, calinski_harabaz_score
 from sklearn.metrics.pairwise import euclidean_distances
 
 def load_topics():
@@ -31,6 +32,8 @@ def cluster_topics(num_clusters, topic_dist_values):
 def cluster_validation(topic_dist_values, cluster_labels):
     scores = {}
     scores['silhouette'] = silhouette_score(topic_dist_values, cluster_labels)
+    scores['ch'] = calinski_harabaz_score(topic_dist_values, cluster_labels)
+    scores['dunn'] = dunn_fast(topic_dist_values, cluster_labels)
     return scores
 
 # calculate dissimilarity matrix for MDS

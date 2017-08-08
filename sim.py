@@ -43,7 +43,9 @@ shepard = calc_shepard(dist_matrix, points)
 
 # cluster and cluster scores
 clusters = cluster_topics(10, topic_dist_values)
-scores = cluster_validation(topic_dist_values, clusters)
+scores_topics = cluster_validation(points, clusters)
+clusters_points = cluster_topics(10, points)
+scores_points = cluster_validation(points, clusters_points)
 
 # plot it
 plot(points, clusters, point_clusters=False)
