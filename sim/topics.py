@@ -110,3 +110,7 @@ def calc_shepard(dist_matrix, eucl_matrix):
                 shepard_points.append([original_distance, reduced_distance])
 
     return np.array(shepard_points)
+
+# checksum calculation
+def calc_checksum(dist_matrix):
+    return sum([sum(dist_matrix[i]) for i in range(len(dist_matrix))])

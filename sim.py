@@ -1,17 +1,18 @@
 import logging, os, json, tvconf, argparse, math
 import numpy as np
+import sim.dim
 
 from distance import Distance
 from sim.fastmap import distmatrix, fastmap
-from sim.graphit import plot
+from sim.graphit import plot, plot_quads
 from sim.mycorpus import MyCorpus
-from sim.topics import calc_shepard, calc_stress, cluster_topics, cluster_validation, dissim, list_stress_points, load_topics
+from sim.topics import calc_checksum, calc_shepard, calc_stress, cluster_topics, cluster_validation, dissim, list_stress_points, load_topics
 from sklearn.manifold import MDS
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.utils.validation import check_array
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
-seed = np.random.RandomState(seed=5)
+seed = np.random.RandomState(seed=5) # TODO port to ini file
 
 parser = argparse.ArgumentParser(description='Perform different functions')
 parser.add_argument('type', type=str)
@@ -34,11 +35,13 @@ elif args.type == 'fastmap-tvd':
 elif args.type == 'mds':
     dist_matrix_list = dissim(topic_dist_values)
     dist_matrix = check_array(dist_matrix_list)
-    dist_check = sum([sum(dist_matrix[i]) for i in range(len(dist_matrix))])
+    dist_check = calc_checksum(dist_matrix)
     print('dist: ', str(dist_check))
     mds = MDS(n_jobs=-1, dissimilarity='precomputed', random_state=seed, verbose=1)
     points = mds.fit_transform(dist_matrix)
     print('tpoint: ', str(points[0]))
+
+# TODO add switch logic to section below
 
 # calculate stress and shepard
 eucl_matrix = euclidean_distances(points)
@@ -52,5 +55,10 @@ scores_topics = cluster_validation(points, clusters)
 clusters_points = cluster_topics(10, points)
 scores_points = cluster_validation(points, clusters_points)
 
-# plot it
-plot(points, clusters, point_clusters=False)
+# plot all points
+#plot(points, clusters, point_clusters=False)
+
+# plot each quadrant of points
+quads_list = plot_quads(points, clusters, points_stress)
+# compute mds on each quadrant
+sim.dim.calc_mds_quads(quads_list, topic_dist_values, clusters)
