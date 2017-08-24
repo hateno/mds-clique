@@ -1,12 +1,12 @@
 import logging, os, json, tvconf, argparse, math
 import numpy as np
-import sim.dim
+import sim.dim, sim.output
 
 from distance import Distance
 from sim.fastmap import distmatrix, fastmap
 from sim.graphit import plot, plot_quads
 from sim.mycorpus import MyCorpus
-from sim.topics import calc_checksum, calc_shepard, calc_stress, cluster_topics, cluster_validation, dissim, list_stress_points, load_topics
+from sim.topics import calc_checksum, calc_shepard, calc_stress, calc_stress_matrix, cluster_topics, cluster_validation, dissim, list_stress_points, load_topics
 from sklearn.manifold import MDS
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.utils.validation import check_array
@@ -40,6 +40,14 @@ elif args.type == 'mds':
     mds = MDS(n_jobs=-1, dissimilarity='precomputed', random_state=seed, verbose=1)
     points = mds.fit_transform(dist_matrix)
     print('tpoint: ', str(points[0]))
+elif args.type == 'mds3':
+    dist_matrix_list = dissim(topic_dist_values)
+    dist_matrix = check_array(dist_matrix_list)
+    dist_check = calc_checksum(dist_matrix)
+    print('dist: ', str(dist_check))
+    mds = MDS(n_components=3, n_jobs=-1, dissimilarity='precomputed', random_state=seed, verbose=1)
+    points = mds.fit_transform(dist_matrix)
+    print('tpoint: ', str(points[0]))
 
 # TODO add switch logic to section below
 
@@ -56,9 +64,13 @@ clusters_points = cluster_topics(10, points)
 scores_points = cluster_validation(points, clusters_points)
 
 # plot all points
-#plot(points, clusters, point_clusters=False)
+#plot(points, clusters, point_clusters=False, three_d=True, title='MDS (r=3)', xlabel='x1', ylabel='x2', zlabel='x3')
 
 # plot each quadrant of points
-quads_list = plot_quads(points, clusters, points_stress)
+#quads_list = plot_quads(points, clusters, points_stress)
 # compute mds on each quadrant
-sim.dim.calc_mds_quads(quads_list, topic_dist_values, clusters)
+#sim.dim.calc_mds_quads(quads_list, topic_dist_values, clusters)
+
+# output to stress.json
+stress_matrix = calc_stress_matrix(dist_matrix, eucl_matrix)
+sim.output.output_json(stress_matrix, points, clusters)

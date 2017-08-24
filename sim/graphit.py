@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from IPython import get_ipython
+from mpl_toolkits.mplot3d import Axes3D
 from sim.topics import cluster_topics
 
 def setup():
@@ -9,7 +10,7 @@ def setup():
     shell = get_ipython()
     shell.magic('%matplotlib qt5') # TODO move this to .ini
 
-def plot(points, clusters, point_clusters=False, title=None, xlabel=None, ylabel=None):
+def plot(points, clusters, point_clusters=False, title=None, xlabel=None, ylabel=None, zlabel=None, three_d=False):
     setup()
 
     if point_clusters:
@@ -19,8 +20,15 @@ def plot(points, clusters, point_clusters=False, title=None, xlabel=None, ylabel
     x = points[:,0]
     y = points[:,1]
     fig = plt.figure() # new figure window
-    ax = fig.add_subplot(111)
-    ax.scatter(x, y, marker='.', c=clusters, cmap='viridis')
+    if three_d:
+        ax = fig.add_subplot(111, projection='3d')
+        z = points[:,2]
+        ax.scatter(x, y, z, marker='.', c=clusters, cmap='viridis')
+        if zlabel != None:
+            ax.set_zlabel(zlabel)
+    else:
+        ax = fig.add_subplot(111)
+        ax.scatter(x, y, marker='.', c=clusters, cmap='viridis')
     if title != None:
         plt.title(title)
     if xlabel != None:

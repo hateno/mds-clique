@@ -1,7 +1,7 @@
 import ctypes as c
 import numpy as np
 import multiprocessing as mp
-import os, pickle
+import math, os, pickle
 
 from distance import Distance
 from functools import partial
@@ -96,6 +96,18 @@ def list_stress_points(dist_matrix, eucl_matrix):
 
     points_stress_sorted = sorted(points_stress, key=lambda tup: tup[1])
     return points_stress_sorted
+
+# stress matrix
+def calc_stress_matrix(dist_matrix, eucl_matrix):
+    N = len(dist_matrix)
+    stress_matrix = []
+    for i in range(N):
+        stress_row = []
+        for j in range(N):
+            stress = math.pow((dist_matrix[i][j] - eucl_matrix[i][j]) ** 2, 0.5)
+            stress_row.append(stress)
+        stress_matrix.append(stress_row)
+    return stress_matrix
 
 # shepard plot calculation
 def calc_shepard(dist_matrix, eucl_matrix):

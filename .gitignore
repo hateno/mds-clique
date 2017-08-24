@@ -103,3 +103,4 @@ ENV/
 store/
 tmp/
 *.bak
+www/
