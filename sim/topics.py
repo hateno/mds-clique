@@ -1,14 +1,43 @@
 import ctypes as c
 import numpy as np
 import multiprocessing as mp
-import math, os, pickle
+import math, os, pickle, shutil
 
 from distance import Distance
 from functools import partial
 from gensim import models
 from sim.jqmcvi import dunn_fast
 from sklearn.cluster import AgglomerativeClustering
+from sklearn.manifold import MDS
 from sklearn.metrics import silhouette_score, calinski_harabaz_score
+
+seed = np.random.RandomState(seed=5) # TODO port to ini file
+
+def flush():
+    '''
+    Clear all pickle cache
+    '''
+    print('deleting tmp/flush...')
+    shutil.rmtree('tmp/flush', ignore_errors=True)
+
+def pickle_load(filename):
+    if not os.path.exists('tmp/flush'):
+        os.makedirs('tmp/flush')
+    obj = None
+    filepath = 'tmp/flush/%s' % filename
+    if os.path.exists(filepath):
+        print('unpickling %s...' % filename)
+        with open(filepath, 'rb') as f:
+            obj = pickle.load(f)
+    else:
+        print('pickle %s not found, calculating...' % filename)
+    return obj
+
+def pickle_store(filename, obj):
+    filepath = 'tmp/flush/%s' % filename
+    with open(filepath, 'wb') as f:
+        print('pickling %s...' % filename)
+        pickle.dump(obj, f)
 
 def load_topics():
     topic_dist_pickle = 'tmp/topic_dist'
@@ -59,7 +88,14 @@ def calc_distance(topics, n, shared_list, i):
         tmp[j] = distance.tvd()
     shared_list[i] = tmp
 
-def dissim(topics):
+def dissim(topics, replot=None):
+    filename = 'dissim'
+    if replot is not None:
+        filename += replot
+    obj = pickle_load(filename)
+    if obj is not None:
+        return obj
+
     n = len(topics)
     manager = mp.Manager()
     shared_list = manager.list([[0 for x in range(n)] for x in range(n)])
@@ -70,6 +106,7 @@ def dissim(topics):
     p.close()
     p.join()
 
+    pickle_store(filename, list(shared_list))
     return list(shared_list)
 
 # stress calculation
@@ -87,18 +124,83 @@ def calc_stress(dist_matrix, eucl_matrix):
     return stress
 
 def list_stress_points(dist_matrix, eucl_matrix):
+    filename = 'stress_points'
+    obj = pickle_load(filename)
+    if obj is not None:
+        return obj
+
+    N = len(dist_matrix)
     points_stress = []
-    for i, point in enumerate(eucl_matrix):
-        dist = dist_matrix[i]
-        stress = ((point - dist) ** 2).sum() / 2
-        point_stress = (i, stress)
-        points_stress.append(point_stress)
+    for i in range(N):
+        for j in range(i):
+            dist = dist_matrix[i][j]
+            eucl = eucl_matrix[i][j]
+            stress = math.fabs(dist - eucl)
+            points_stress.append(('%s-%s' % (i, j), stress))
 
     points_stress_sorted = sorted(points_stress, key=lambda tup: tup[1])
+    pickle_store(filename, points_stress_sorted)
     return points_stress_sorted
+
+def calc_total_stress_points(dist_matrix, eucl_matrix, replot=None, point_indicies=None):
+    '''
+    Calculate total stress value for each point
+    '''
+    filename = 'total_stress_points'
+    if replot is not None:
+        filename += replot
+    obj = pickle_load(filename)
+    if obj is not None:
+        return obj
+
+    N = len(dist_matrix)
+    total_stress_points = []
+    for i, point in enumerate(eucl_matrix):
+        dist = dist_matrix[i]
+        total_stress = ((point - dist) ** 2).sum()
+        index = i
+        if point_indicies is not None:
+            index = point_indicies[index]
+        total_point_stress = (index, total_stress)
+        total_stress_points.append(total_point_stress)
+
+    total_stress_points_sorted = sorted(total_stress_points, key=lambda tup: tup[1])
+    pickle_store(filename, total_stress_points_sorted)
+    return total_stress_points_sorted
+
+def get_quads(points_stress_list):
+    '''
+    segments an array of (point, total_stress) into four quadrants by std
+    '''
+    stress_list = np.array([point_total_stress[1] for point_total_stress in points_stress_list])
+    mean = stress_list.mean()
+    std = stress_list.std()
+
+    first = mean - std
+    second = mean
+    third = mean + std
+
+    quads = [[], [], [], []]
+    for points_stress in points_stress_list:
+        stress = points_stress[1]
+        if stress < first:
+            quads[0].append(points_stress)
+        elif stress < second:
+            quads[1].append(points_stress)
+        elif stress < third:
+            quads[2].append(points_stress)
+        else:
+            quads[3].append(points_stress)
+
+    return quads
 
 # stress matrix
 def calc_stress_matrix(dist_matrix, eucl_matrix):
+    filename = 'stress_matrix'
+    obj = pickle_load(filename)
+    if obj is not None:
+        return obj
+
     N = len(dist_matrix)
     stress_matrix = []
     for i in range(N):
@@ -107,10 +209,16 @@ def calc_stress_matrix(dist_matrix, eucl_matrix):
             stress = math.pow((dist_matrix[i][j] - eucl_matrix[i][j]) ** 2, 0.5)
             stress_row.append(stress)
         stress_matrix.append(stress_row)
+
+    pickle_store(filename, stress_matrix)
     return stress_matrix
 
 # shepard plot calculation
 def calc_shepard(dist_matrix, eucl_matrix):
+    obj = pickle_load('shepard')
+    if obj is not None:
+        return obj
+
     n = len(eucl_matrix)
 
     shepard_points = []
@@ -121,8 +229,52 @@ def calc_shepard(dist_matrix, eucl_matrix):
                 reduced_distance = eucl_matrix[i][j]
                 shepard_points.append([original_distance, reduced_distance])
 
-    return np.array(shepard_points)
+    obj = np.array(shepard_points)
+    pickle_store('shepard', obj)
+    return obj
 
 # checksum calculation
 def calc_checksum(dist_matrix):
     return sum([sum(dist_matrix[i]) for i in range(len(dist_matrix))])
+
+# mds helper
+def mds_helper(dist_matrix, r=2, replot=None):
+    filename = 'mds%s' % r
+    if replot is not None:
+        filename += replot
+    obj = pickle_load(filename)
+    if obj is not None:
+        return obj
+
+    mds = MDS(n_components=r, n_jobs=-1, dissimilarity='precomputed', random_state=seed, verbose=1)
+    points = mds.fit_transform(dist_matrix)
+    print('MDS Stress: %.10f' % mds.stress_)
+    pickle_store(filename, points)
+    return points
+
+# euclidean distance
+
+# iterative mds - DEPRECATE
+def preprocess(quads):
+    '''
+    array of arrays => array
+    '''
+    all_quads = quads[0] + quads[1]
+    points = [quad[0] for quad in all_quads]
+    return points
+
+def replot_topics(replot_points, topic_dist_values):
+    replot_topic_dist_values = []
+    for replot_point in replot_points:
+        replot_topic_dist_values.append(topic_dist_values[replot_point])
+    return np.array(replot_topic_dist_values)
+
+def retrieve_good_points(quads, points, point_indicies=None):
+    good_points = []
+    for point_stress in quads:
+        index = point_stress[0]
+        if point_indicies is not None:
+            index = point_indicies.index(index)
+        eucl_point = points[index]
+        good_points.append((point_stress[0], eucl_point))
+    return good_points
