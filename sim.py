@@ -3,7 +3,6 @@ import networkx as nx
 import numpy as np
 import sim.dim, sim.graph, sim.output, sim.topics
 
-from distance import Distance
 from sim.graphit import plot, plot_quads
 from sim.mycorpus import MyCorpus
 from sklearn.manifold import MDS
@@ -30,7 +29,7 @@ if args.type == 'mds':
 elif args.type == 'mds3':
     r_dim = 3
 
-dist_matrix_list = sim.topics.dissim(topic_dist_values)
+dist_matrix_list = sim.topics.dissim(topic_dist_values, repickle=True)
 dist_matrix = check_array(dist_matrix_list)
 points = sim.topics.mds_helper(dist_matrix, r=r_dim)
 

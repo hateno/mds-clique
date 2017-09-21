@@ -3,9 +3,9 @@ import numpy as np
 import multiprocessing as mp
 import math, os, pickle, shutil, tvconf
 
-from distance import Distance
 from functools import partial
 from gensim import models
+from sim.distance import Distance
 from sim.jqmcvi import dunn_fast
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.manifold import MDS
@@ -88,15 +88,16 @@ def calc_distance(topics, n, shared_list, i):
     for j in range(n):
         topic_i = topics[i]
         topic_j = topics[j]
-        distance = Distance( topic_i, topic_j )
-        tmp[j] = distance.tvd()
+        distance = Distance(topic_i, topic_j).kl()
+        distance_r = Distance(topic_j, topic_i).kl()
+        tmp[j] = (distance + distance_r) / 2.0
     shared_list[i] = tmp
 
-def dissim(topics, replot=None, pickle_enabled=True):
+def dissim(topics, replot=None, pickle_enabled=True, repickle=False):
     filename = 'dissim'
     if replot is not None:
         filename += replot
-    if pickle_enabled:
+    if pickle_enabled and not repickle:
         obj = pickle_load(filename)
         if obj is not None:
             return obj
