@@ -6,7 +6,7 @@ from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.utils.validation import check_array
 
 class MGraph:
-    MAX_ITER = 20
+    MAX_ITER = 20 # hasn't been hit so far, just a safeguard
 
     def __init__(self, points, stress_points, topic_dist_values, r_dim):
         self.points = points
@@ -114,4 +114,26 @@ class MGraph:
 
             iterations += 1
 
+        self.cliques = cliques
         return cliques
+
+    def find_cluster_scores(self, clusters):
+        '''
+        return cluster scores for each clique
+        '''
+        cliques = self.cliques
+        scores = []
+        for clique in cliques:
+            points = []
+            points_cluster = []
+            for point in clique:
+                points.append((point[1], point[2]))
+                points_cluster.append(clusters[point[0]])
+
+            try:
+                clique_score = sim.topics.cluster_validation(points, points_cluster)
+                scores.append(clique_score)
+            except ValueError: # too few clusters
+                scores.append(None)
+
+        return scores

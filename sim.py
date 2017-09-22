@@ -40,13 +40,19 @@ stress_points = sim.topics.list_stress_points(dist_matrix, eucl_matrix)
 
 # clusters of mds
 clusters = sim.topics.cluster_topics(10, topic_dist_values)
+cluster_scores = sim.topics.cluster_validation(topic_dist_values, clusters)
 
 # mds graph
 mgraph = sim.graph.MGraph(points, stress_points, topic_dist_values, r_dim)
 cliques = mgraph.find_cliques()
+cliques_scores = mgraph.find_cluster_scores(clusters)
 
 # output cliques to file
 for i, clique_points in enumerate(cliques):
     with open('out_cliques_%s' % i, 'w') as f:
         for clique_point in clique_points:
-            f.write('%s %s %s\n' % (clique_point[0], clique_point[1], clique_point[2]))
+            topic = clique_point[0]
+            cluster = clusters[topic]
+            point_x = clique_point[1]
+            point_y = clique_point[2]
+            f.write('%s %s %s %s\n' % (topic, cluster, point_x, point_y))

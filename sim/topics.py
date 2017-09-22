@@ -298,7 +298,7 @@ def find_k(stress_points):
     stress_values = np.array([stress_point[2] for stress_point in stress_points])
     mean = stress_values.mean()
     std = stress_values.std()
-    k = mean + std
+    k = mean - std
     return k
 
 # iterative mds - DEPRECATE
