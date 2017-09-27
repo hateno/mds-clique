@@ -11,6 +11,7 @@ from sklearn.cluster import AgglomerativeClustering
 from sklearn.manifold import MDS
 from sklearn.metrics import silhouette_score, calinski_harabaz_score
 
+# marshal utility functions
 def flush():
     '''
     Clear all pickle cache
@@ -286,8 +287,6 @@ def mds_r_calc(dist_matrix, final_r):
         stress_r.append(mds.stress_)
     return stress_r
 
-# euclidean distance
-
 # graph helper methods
 def find_k(stress_points):
     '''
@@ -301,27 +300,12 @@ def find_k(stress_points):
     k = mean - std
     return k
 
-# iterative mds - DEPRECATE
-def preprocess(quads):
-    '''
-    array of arrays => array
-    '''
-    all_quads = quads[0] + quads[1]
-    points = [quad[0] for quad in all_quads]
-    return points
-
-def replot_topics(replot_points, topic_dist_values):
-    replot_topic_dist_values = []
-    for replot_point in replot_points:
-        replot_topic_dist_values.append(topic_dist_values[replot_point])
-    return np.array(replot_topic_dist_values)
-
-def retrieve_good_points(quads, points, point_indicies=None):
-    good_points = []
-    for point_stress in quads:
-        index = point_stress[0]
-        if point_indicies is not None:
-            index = point_indicies.index(index)
-        eucl_point = points[index]
-        good_points.append((point_stress[0], eucl_point))
-    return good_points
+# output mds points output to file
+def print_mds_points(points, clusters=None):
+    with open('out/points', 'w') as f:
+        for topic, point in enumerate(points):
+            if clusters is not None:
+                cluster = clusters[topic]
+                f.write('%s %s %s\n' % (topic, cluster, ' '.join(str(coord) for coord in point)))
+            else:
+                f.write('%s %s\n' % (topic, ' '.join(str(coord) for coord in point)))

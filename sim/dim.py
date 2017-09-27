@@ -1,7 +1,7 @@
 import logging
 import matplotlib.pyplot as plt
 import numpy as np
-import sim.topics, sim.graphit
+import sim.topics
 
 from sklearn.manifold import MDS
 from sklearn.metrics.pairwise import euclidean_distances
@@ -31,4 +31,3 @@ def calc_mds_quads(quads_list, topics, clusters):
         clusters_quad = [clusters[point] for point in quad_list]
         print('\ncalculating mds for points %s' % quad_list)
         points = calc_mds(topics_quad)
-        sim.graphit.plot(points, clusters_quad, point_clusters=False, title='Quad %i' % i, xlabel='x1', ylabel='x2')
