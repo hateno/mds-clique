@@ -1,7 +1,7 @@
-import logging, os, json, tvconf, argparse, math, sys
+import itertools, logging, os, json, tvconf, argparse, math, sys, random
 import networkx as nx
 import numpy as np
-import sim.dim, sim.graph, sim.random, sim.output, sim.topics
+import sim.dim, sim.graph, sim.random, sim.relative, sim.output, sim.topics
 
 from sim.mycorpus import MyCorpus
 from sklearn.manifold import MDS
@@ -22,6 +22,7 @@ parser.add_argument('--flush', action='store_true', help='Clear pickle cache, us
 parser.add_argument('--regen', action='store_true', help='Used with -corpus=random, regenerate random points or use previous')
 parser.add_argument('--pickle', action='store_false', help='Pickle enabled, store data being generated')
 parser.add_argument('--repickle', action='store_false', help='Repickle a data structure, typically used in conjunction with --pickle')
+parser.add_argument('--relative', action='store_true', help='Perform relative MDS calculation')
 args = parser.parse_args()
 
 # clear out all pickle storage
@@ -55,33 +56,48 @@ if args.corpus == 'ap' or args.corpus == 'random':
     clusters = sim.topics.cluster_topics(NUM_CLUSTERS, topic_dist_values)
     cluster_scores = sim.topics.cluster_validation(topic_dist_values, clusters)
 
-elif args.corpus == 'random-dist':
-    # random dist matrix - many parts below not needed
+elif args.corpus == 'random-dist': # random dist matrix
     (clusters, dist_matrix_list) = rand.generate_cluster_dist_matrix()
     dist_matrix = check_array(dist_matrix_list)
     sim.topics.print_mds_points(points, clusters=clusters)
 
-# mds points calculation
-points = sim.topics.mds_helper(dist_matrix, r=r_dim, pickle_enabled=args.pickle)
-eucl_matrix = euclidean_distances(points)
+if args.relative: # relative mds
+    stress = {}
+    for k in range(5,6): # TODO hard-coded the number of basis vectors
+        combos = []
+        population = list(range(100))
+        for _ in range(100):
+            combo = random.sample(population, k)
+            combos.append(combo)
+        for combo_id, basis_ids in enumerate(combos):
+            filename = '%s-%s' % (k, combo_id)
+            print('processing %s...' % filename)
+            relative = sim.relative.Relative(dist_matrix, clusters, r_dim=r_dim, basis=basis_ids)
+            relative.print_basis_points(filename=filename)
+            relative.print_result(filename=filename)
+            stress[filename] = relative.rmds.stress_
+else: # use scikit's mds
+    # mds points calculation
+    points = sim.topics.mds_helper(dist_matrix, r=r_dim, pickle_enabled=args.pickle)
+    eucl_matrix = euclidean_distances(points)
 
-sim.topics.print_mds_points(points, clusters=clusters)
+    sim.topics.print_mds_points(points, clusters=clusters)
 
-# cluster of points
-clusters_p = sim.topics.cluster_topics(NUM_CLUSTERS, points)
-cluster_scores_p = sim.topics.cluster_validation(points, clusters_p)
+    # cluster of points
+    clusters_p = sim.topics.cluster_topics(NUM_CLUSTERS, points)
+    cluster_scores_p = sim.topics.cluster_validation(points, clusters_p)
 
-# calculate stress between every point pairs
-stress_points = sim.topics.list_stress_points(dist_matrix, eucl_matrix, pickle_enabled=False)
+    # calculate stress between every point pairs
+    stress_points = sim.topics.list_stress_points(dist_matrix, eucl_matrix, pickle_enabled=False)
 
-# mds graph initialize
-mgraph = sim.graph.MGraph(points, stress_points, topic_dist_values, dist_matrix, eucl_matrix, r_dim, clusters)
+    # mds graph initialize
+    mgraph = sim.graph.MGraph(points, stress_points, topic_dist_values, dist_matrix, eucl_matrix, r_dim, clusters)
 
-# mds graph algorithm type
-if args.clique == 'distance':
-    cliques = mgraph.find_cliques_distance(args.k)
-elif args.clique == 'stress':
-    cliques = mgraph.find_cliques_stress()
+    # mds graph algorithm type
+    if args.clique == 'distance':
+        cliques = mgraph.find_cliques_distance(args.k)
+    elif args.clique == 'stress':
+        cliques = mgraph.find_cliques_stress()
 
-# output to file
-mgraph.write_to_file()
+    # output to file
+    mgraph.write_to_file()
