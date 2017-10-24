@@ -257,7 +257,7 @@ def calc_checksum(dist_matrix):
     return sum([sum(dist_matrix[i]) for i in range(len(dist_matrix))])
 
 # mds helper
-def mds_helper(dist_matrix, r=2, replot=None, pickle_enabled=True):
+def mds_helper(dist_matrix, r=2, replot=None, pickle_enabled=True, verbose=1):
     '''
     pickle_enabled: if False, compute everytime and don't pickle anything
     '''
@@ -269,12 +269,12 @@ def mds_helper(dist_matrix, r=2, replot=None, pickle_enabled=True):
         if obj is not None:
             return obj
 
-    mds = MDS(n_components=r, n_jobs=-1, dissimilarity='precomputed', random_state=tvconf.SEED, verbose=1)
+    mds = MDS(n_components=r, n_jobs=-1, dissimilarity='precomputed', random_state=tvconf.SEED, verbose=verbose)
     points = mds.fit_transform(dist_matrix)
     print('MDS Stress: %.10f' % mds.stress_)
     if pickle_enabled:
         pickle_store(filename, points)
-    return points
+    return points, mds
 
 def mds_r_calc(dist_matrix, final_r):
     '''

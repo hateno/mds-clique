@@ -105,7 +105,7 @@ class MGraph:
             # run MDS on new_topic_values
             new_dist_matrix_list = sim.topics.dissim(new_topics_values, pickle_enabled=False)
             new_dist_matrix = check_array(new_dist_matrix_list)
-            new_points = sim.topics.mds_helper(new_dist_matrix, r=self.r_dim, pickle_enabled=False)
+            new_points, _ = sim.topics.mds_helper(new_dist_matrix, r=self.r_dim, pickle_enabled=False)
             new_eucl_matrix = euclidean_distances(new_points)
             new_stress_points = sim.topics.list_stress_points(new_dist_matrix, new_eucl_matrix, pickle_enabled=False)
 

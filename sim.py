@@ -63,22 +63,42 @@ elif args.corpus == 'random-dist': # random dist matrix
 
 if args.relative: # relative mds
     stress = {}
-    for k in range(5,6): # TODO hard-coded the number of basis vectors
-        combos = []
-        population = list(range(100))
-        for _ in range(100):
-            combo = random.sample(population, k)
-            combos.append(combo)
-        for combo_id, basis_ids in enumerate(combos):
-            filename = '%s-%s' % (k, combo_id)
-            print('processing %s...' % filename)
-            relative = sim.relative.Relative(dist_matrix, clusters, r_dim=r_dim, basis=basis_ids)
-            relative.print_basis_points(filename=filename)
-            relative.print_result(filename=filename)
-            stress[filename] = relative.rmds.stress_
+    basis_stress = {}
+    rmds_stress = {}
+    n_samples = 400
+    k = 20
+
+    combos = []
+    population = list(range(100))
+    for _ in range(n_samples):
+        combo = random.sample(population, k)
+        combos.append(combo)
+    for combo_id, basis_ids in enumerate(combos):
+        filename = '%s-%s' % (k, combo_id)
+        print('processing %s...' % filename)
+        relative = sim.relative.Relative(dist_matrix, clusters, r_dim=r_dim, basis=basis_ids)
+        relative.print_basis_points(filename=filename)
+        relative.print_result(filename=filename)
+        stress[filename] = relative.final_stress
+        basis_stress[filename] = relative.basis_stress
+        rmds_stress[filename] = relative.rmds.stress_
+
+    fstress = np.array(list(stress.values()))
+    bstress = np.array(list(basis_stress.values()))
+    rstress = np.array(list(rmds_stress.values()))
+    flist = sorted(list(stress.items()), key=lambda tupl: tupl[1])
+    blist = sorted(list(basis_stress.items()), key=lambda tupl: tupl[1])
+    rlist = sorted(list(rmds_stress.items()), key=lambda tupl: tupl[1])
+    print('final_stress: %f %f %f %f' % (fstress.mean(), fstress.std(), fstress.min(), fstress.max()))
+    print('\t(min, median, max): %s %s %s' % (flist[0][0], flist[len(flist) // 2][0], flist[-1][0]))
+    print('basis_stress: %f %f %f %f' % (bstress.mean(), bstress.std(), bstress.min(), bstress.max()))
+    print('\t(min, median, max): %s %s %s' % (blist[0][0], blist[len(blist) // 2][0], blist[-1][0]))
+    print('rmds_stress: %f %f %f %f' % (rstress.mean(), rstress.std(), rstress.min(), rstress.max()))
+    print('\t(min, median, max): %s %s %s' % (rlist[0][0], rlist[len(rlist) // 2][0], rlist[-1][0]))
+
 else: # use scikit's mds
     # mds points calculation
-    points = sim.topics.mds_helper(dist_matrix, r=r_dim, pickle_enabled=args.pickle)
+    points, _ = sim.topics.mds_helper(dist_matrix, r=r_dim, pickle_enabled=args.pickle)
     eucl_matrix = euclidean_distances(points)
 
     sim.topics.print_mds_points(points, clusters=clusters)

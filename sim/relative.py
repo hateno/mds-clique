@@ -4,6 +4,7 @@ import sklearn.manifold.rmds as rmds
 import sim.topics, tvconf
 
 from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.utils.validation import check_random_state
 
 class Relative:
     '''
@@ -26,10 +27,25 @@ class Relative:
         #self.basis_eucl_matrix = euclidean_distances(self.basis_points)
 
         # relative mapping
-        self.rmds = rmds.RMDS(n_components=r_dim, n_jobs=1, dissimilarity='precomputed', random_state=tvconf.SEED,
-                verbose=1, fixed_points=self.basis_points, fdissim=self.fdissim)
+        self.rmds = rmds.RMDS(n_components=r_dim, n_jobs=-1, dissimilarity='precomputed', random_state=tvconf.SEED,
+                verbose=0, fixed_points=self.basis_points, fdissim=self.fdissim)
         result = self.rmds.fit_transform(self.remaining_points)
         self.result = result
+
+        # manual stress calculation (check vs. (self.rmds.stress_ + self.basis_stress))
+        self._calc_final_stress()
+
+    def _calc_final_stress(self):
+        '''
+        calculate final stress of all euclidean points (rmds result) vs disparities (actual distances)
+        this is to compare against the stress we calculate from the base components
+        '''
+        offset = sorted(self.vector_ids)
+        vector_ids = [vector_id - offset.index(vector_id) for vector_id in self.vector_ids]
+        points = np.insert(self.result, vector_ids, self.basis_points, axis=0)
+        dis = euclidean_distances(points)
+        dissim = self.dist_matrix
+        self.final_stress = ((dis.ravel() - dissim.ravel()) ** 2).sum() / 2
 
     def _select_basis_vectors(self):
         '''
@@ -53,7 +69,8 @@ class Relative:
         TODO expand this to read from the program arguments
         '''
         # mds points calculation
-        points = sim.topics.mds_helper(self.basis_dist_matrix, r=self.r_dim, pickle_enabled=False)
+        points, mds = sim.topics.mds_helper(self.basis_dist_matrix, r=self.r_dim, pickle_enabled=False, verbose=0)
+        self.basis_stress = mds.stress_
         return points
 
     def _get_fdissim(self):
