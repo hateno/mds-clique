@@ -13,5 +13,6 @@ class MyCorpus(object):
 
 corpus = MyCorpus()
 
-lda = models.LdaMulticore(corpus, id2word=dictionary, num_topics=100, passes=5, iterations=1500)
+#lda = models.LdaMulticore(corpus, id2word=dictionary, num_topics=100, passes=3, iterations=100)
+lda = models.LdaMulticore(corpus, id2word=dictionary, num_topics=20, passes=5, iterations=200)
 lda.save('store/corpus.lda')

@@ -8,6 +8,9 @@ class Distance():
             raise AssertionError('Vectors p and q must be same length')
 
     def kl(self):
+        '''
+        augmented to work with pre-generated dist_matrix
+        '''
         d = 0
         for i in range(len(self.p)):
             s = self.p[i] * math.log(self.p[i] / self.q[i])

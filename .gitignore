@@ -99,6 +99,7 @@ ENV/
 .mypy_cache/
 
 # custom
+.nfs*
 *.ini
 store/
 tmp/

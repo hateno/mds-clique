@@ -1,7 +1,8 @@
 import ctypes as c
 import numpy as np
 import multiprocessing as mp
-import math, os, pickle, shutil, tvconf
+import logging, math, os, pickle, shutil, tvconf
+import sim.relative
 
 from functools import partial
 from gensim import models
@@ -10,6 +11,9 @@ from sim.jqmcvi import dunn_fast
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.manifold import MDS
 from sklearn.metrics import silhouette_score, calinski_harabaz_score
+from multiprocessing.pool import ThreadPool
+
+logger = logging.getLogger()
 
 # marshal utility functions
 def flush():
@@ -19,47 +23,38 @@ def flush():
     print('deleting tmp/flush...')
     shutil.rmtree('tmp/flush', ignore_errors=True)
 
-def pickle_load(filename):
-    if not os.path.exists('tmp/flush'):
-        os.makedirs('tmp/flush')
+def pickle_load(ident, filename):
+    path = 'store/ident/%s' % ident
+    if not os.path.exists(path):
+        os.makedirs(path)
     obj = None
-    filepath = 'tmp/flush/%s' % filename
+    filepath = '%s/%s' % (path, filename)
     if os.path.exists(filepath):
-        print('unpickling %s...' % filename)
+        logger.info('unpickling %s, %s...' % (ident, filename))
         with open(filepath, 'rb') as f:
             obj = pickle.load(f)
     else:
-        print('pickle %s not found, calculating...' % filename)
+        logger.info('pickle %s, %s not found, calculating...' % (ident, filename))
     return obj
 
-def pickle_store(filename, obj):
-    filepath = 'tmp/flush/%s' % filename
+def pickle_store(ident, filename, obj):
+    filepath = 'store/ident/%s/%s' % (ident, filename)
     with open(filepath, 'wb') as f:
-        print('pickling %s...' % filename)
+        logger.info('pickling %s, %s...' % (ident, filename))
         pickle.dump(obj, f)
 
 def load_topics():
-    topic_dist_pickle = 'tmp/topic_dist'
-    topic_dist_values_pickle = 'tmp/topic_dist_values'
-    if os.path.isfile(topic_dist_pickle) and os.path.isfile(topic_dist_values_pickle):
-        print('Loading from pickle...')
-        with open(topic_dist_pickle, 'rb') as f:
-            topic_dist = pickle.load(f)
-        with open(topic_dist_values_pickle, 'rb') as f:
-            topic_dist_values = pickle.load(f)
-    else:
-        print('Loading from store...')
-        lda = models.LdaMulticore.load('store/corpus.lda')
-        topic_dist = {}
-        for topic_num in range(lda.num_topics):
-            topic_terms = lda.get_topic_terms(topic_num, topn=None)
-            distribution = tuple([topic_term[1] for topic_term in topic_terms])
-            topic_dist[topic_num] = distribution
-        topic_dist_values = np.array(list(topic_dist.values()))
-        with open(topic_dist_pickle, 'wb') as f:
-            pickle.dump(topic_dist, f)
-        with open(topic_dist_values_pickle, 'wb') as f:
-            pickle.dump(topic_dist_values, f)
+    '''
+    load from ap store
+    '''
+    print('Loading from store...')
+    lda = models.LdaMulticore.load('store/corpus.lda')
+    topic_dist = {}
+    for topic_num in range(lda.num_topics):
+        topic_terms = lda.get_topic_terms(topic_num, topn=None)
+        distribution = tuple([topic_term[1] for topic_term in topic_terms])
+        topic_dist[topic_num] = distribution
+    topic_dist_values = np.array(list(topic_dist.values()))
     return (topic_dist, topic_dist_values)
 
 # topic agglomorative clustering
@@ -94,28 +89,56 @@ def calc_distance(topics, n, shared_list, i):
         tmp[j] = (distance + distance_r) / 2.0
     shared_list[i] = tmp
 
-def dissim(topics, replot=None, pickle_enabled=True, repickle=False):
+def _shrink_matrix(matrix, index):
+    d = np.take(matrix, index, axis=0)
+    dd = np.take(d, index, axis=1)
+    return dd
+
+def dissim(topics, replot=None, ident=None, index=None):
+    if topics[0][0] is None: # TODO hack solution, simply a flag for dissim to fetch precomputed dissim and perform _shrink_matrix operation if necessary
+        dissim = topics[0][1] # fetch precomputed matrix (stored in every array position)
+        if index is not None:
+            dissim = _shrink_matrix(dissim, index) # if index argument exists, shrink precomputed matrix
+        return dissim
     filename = 'dissim'
-    if replot is not None:
-        filename += replot
-    if pickle_enabled and not repickle:
-        obj = pickle_load(filename)
+    if ident is not None and ident != '':
+        obj = pickle_load(ident, filename)
         if obj is not None:
             return obj
 
     n = len(topics)
-    manager = mp.Manager()
-    shared_list = manager.list([[0 for x in range(n)] for x in range(n)])
+    shared_list = np.zeros([n, n])
 
-    p = mp.Pool(os.cpu_count())
+    p = ThreadPool(os.cpu_count() // 2)
     func = partial(calc_distance, topics, n, shared_list)
     p.map(func, range(n))
     p.close()
     p.join()
 
-    if pickle_enabled:
-        pickle_store(filename, list(shared_list))
-    return list(shared_list)
+    if ident is not None and ident != '':
+        pickle_store(ident, filename, list(shared_list))
+    return shared_list
+
+def dissim_single(topics, index=None):
+    '''
+    calculates dissimilarity matrix same as dissim(), but only a single job
+    '''
+    if topics[0][0] is None: # dist matrix precomputed
+        dissim = topics[0][1]
+        if index is not None:
+            dissim = _shrink_matrix(dissim, index)
+        return dissim
+    n = len(topics)
+    dissim = np.zeros([n, n])
+    for i in range(n):
+        for j in range(i):
+            topic_i = topics[i]
+            topic_j = topics[j]
+            distance = Distance(topic_i, topic_j).kl()
+            distance_r = Distance(topic_j, topic_i).kl()
+            dissim[i][j] = (distance + distance_r) / 2.0
+            dissim[j][i] = (distance + distance_r) / 2.0
+    return dissim
 
 # stress calculation
 def calc_stress_helper(dist_matrix, eucl_matrix, n, shared_value, i):
@@ -134,37 +157,57 @@ def calc_stress(dist_matrix, eucl_matrix):
     stress = ((eucl_matrix.ravel() - dist_matrix.ravel()) ** 2).sum() / 2
     return stress
 
-def list_stress_points(dist_matrix, eucl_matrix, pickle_enabled=True):
+def calc_stress_matrix(dist_matrix, eucl_matrix):
+    stress_matrix = np.absolute(np.divide((dist_matrix - eucl_matrix), eucl_matrix))
+    return stress_matrix
+
+def _list_stress_points(i, mpoints_stress, dist_matrix, eucl_matrix):
+    for j in range(i):
+        dist = dist_matrix[i][j]
+        eucl = eucl_matrix[i][j]
+        stress = math.fabs(dist - eucl)
+        mpoints_stress.append((i, j, stress))
+
+def list_stress_points(dist_matrix, eucl_matrix, ident=None, parallel=False):
     filename = 'stress_points'
-    if pickle_enabled:
-        obj = pickle_load(filename)
+    if ident is not None:
+        obj = pickle_load(ident, filename)
         if obj is not None:
             return obj
 
     N = len(dist_matrix)
     points_stress = []
-    for i in range(N):
-        for j in range(i):
-            dist = dist_matrix[i][j]
-            eucl = eucl_matrix[i][j]
-            stress = math.fabs(dist - eucl)
-            points_stress.append((i, j, stress))
+    if not parallel:
+        for i in range(N):
+            for j in range(i):
+                dist = dist_matrix[i][j]
+                eucl = eucl_matrix[i][j]
+                stress = math.fabs((dist - eucl) / eucl)
+                points_stress.append((i, j, stress))
+    else:
+        N_PROCESS = os.cpu_count() // 2
+        mpoints_stress = []
+        pool = ThreadPool(N_PROCESS)
+        pargs = [(i, mpoints_stress, dist_matrix, eucl_matrix) for i in range(N)]
+        pool.starmap(_list_stress_points, pargs)
+        pool.close()
+        pool.join()
+        points_stress = list(mpoints_stress)
 
     points_stress_sorted = sorted(points_stress, key=lambda tup: tup[1])
-    if pickle_enabled:
-        pickle_store(filename, points_stress_sorted)
+    if ident is not None:
+        pickle_store(ident, filename, points_stress_sorted)
     return points_stress_sorted
 
-def calc_total_stress_points(dist_matrix, eucl_matrix, replot=None, point_indicies=None):
+def calc_total_stress_points(dist_matrix, eucl_matrix, point_indicies=None, ident=None):
     '''
     Calculate total stress value for each point
     '''
     filename = 'total_stress_points'
-    if replot is not None:
-        filename += replot
-    obj = pickle_load(filename)
-    if obj is not None:
-        return obj
+    if ident is not None:
+        obj = pickle_load(ident, filename)
+        if obj is not None:
+            return obj
 
     N = len(dist_matrix)
     total_stress_points = []
@@ -178,7 +221,8 @@ def calc_total_stress_points(dist_matrix, eucl_matrix, replot=None, point_indici
         total_stress_points.append(total_point_stress)
 
     total_stress_points_sorted = sorted(total_stress_points, key=lambda tup: tup[1])
-    pickle_store(filename, total_stress_points_sorted)
+    if ident is not None:
+        pickle_store(ident, filename, total_stress_points_sorted)
     return total_stress_points_sorted
 
 def get_quads(points_stress_list):
@@ -207,33 +251,15 @@ def get_quads(points_stress_list):
 
     return quads
 
-# stress matrix
-def calc_stress_matrix(dist_matrix, eucl_matrix):
-    filename = 'stress_matrix'
-    obj = pickle_load(filename)
-    if obj is not None:
-        return obj
-
-    N = len(dist_matrix)
-    stress_matrix = []
-    for i in range(N):
-        stress_row = []
-        for j in range(N):
-            stress = math.pow((dist_matrix[i][j] - eucl_matrix[i][j]) ** 2, 0.5)
-            stress_row.append(stress)
-        stress_matrix.append(stress_row)
-
-    pickle_store(filename, stress_matrix)
-    return stress_matrix
-
 # shepard plot calculation
-def calc_shepard(dist_matrix, eucl_matrix):
+def calc_shepard(dist_matrix, eucl_matrix, ident=None):
     '''
     shepard plot
     '''
-    obj = pickle_load('shepard')
-    if obj is not None:
-        return obj
+    if ident is not None:
+        obj = pickle_load(ident, 'shepard')
+        if obj is not None:
+            return obj
 
     n = len(eucl_matrix)
 
@@ -246,7 +272,8 @@ def calc_shepard(dist_matrix, eucl_matrix):
                 shepard_points.append([original_distance, reduced_distance])
 
     obj = np.array(shepard_points)
-    pickle_store('shepard', obj)
+    if ident is not None:
+        pickle_store(ident, 'shepard', obj)
     return obj
 
 # checksum calculation
@@ -257,24 +284,22 @@ def calc_checksum(dist_matrix):
     return sum([sum(dist_matrix[i]) for i in range(len(dist_matrix))])
 
 # mds helper
-def mds_helper(dist_matrix, r=2, replot=None, pickle_enabled=True, verbose=1):
-    '''
-    pickle_enabled: if False, compute everytime and don't pickle anything
-    '''
-    filename = 'mds%s' % r
-    if replot is not None:
-        filename += replot
-    if pickle_enabled:
-        obj = pickle_load(filename)
+def mds_helper(dist_matrix, rdim=2, verbose=0, n_jobs=-1, ident=None):
+    filename = 'mds%s' % rdim
+    if ident is not None:
+        obj = pickle_load(ident, filename)
         if obj is not None:
             return obj
 
-    mds = MDS(n_components=r, n_jobs=-1, dissimilarity='precomputed', random_state=tvconf.SEED, verbose=verbose)
+    mds = MDS(n_components=rdim, n_jobs=n_jobs, dissimilarity='precomputed', random_state=tvconf.SEED, verbose=verbose)
     points = mds.fit_transform(dist_matrix)
-    print('MDS Stress: %.10f' % mds.stress_)
-    if pickle_enabled:
-        pickle_store(filename, points)
-    return points, mds
+    stress = sim.relative.Relative.calc_stress(points, dist_matrix)
+    logging.info('mds done, stress: %.4f' % stress)
+
+    if ident is not None:
+        pickle_store(ident, filename, points)
+
+    return points
 
 def mds_r_calc(dist_matrix, final_r):
     '''
@@ -297,15 +322,82 @@ def find_k(stress_points):
     stress_values = np.array([stress_point[2] for stress_point in stress_points])
     mean = stress_values.mean()
     std = stress_values.std()
-    k = mean - std
+    k = mean
+    if k < 0:
+        return 0
     return k
 
+def calc_aspe(stress, n):
+    n_edges = n * (n - 1) / 2
+    if n_edges == 0:
+        return 0
+    return stress / math.sqrt(n_edges)
+
+def calc_aspe_cliques(cliques_stress, cliques_points):
+    result = []
+    for clique_stress, clique_points in zip(cliques_stress, cliques_points):
+        n = len(clique_points)
+        aspe = 0
+        if n > 1:
+            aspe = clique_stress / math.sqrt(n * (n - 1) / 2)
+        result.append(aspe)
+    return result
+
 # output mds points output to file
-def print_mds_points(points, clusters=None):
-    with open('out/points', 'w') as f:
+def print_mds_points(points, clusters=None, filename=None, subdir=None, index=None):
+    _filename = 'points' if filename is None else filename
+    _subdir = 'out/experiment' if subdir is None else 'out/experiment/%s' % subdir
+    if not os.path.exists(_subdir):
+        os.mkdir(_subdir)
+    path = '%s/%s' % (_subdir, _filename)
+    logger.info('printing mds points to %s...' % path)
+    with open(path, 'w') as f:
         for topic, point in enumerate(points):
+            idx = topic
+            if index is not None:
+                idx = index[topic]
             if clusters is not None:
                 cluster = clusters[topic]
-                f.write('%s %s %s\n' % (topic, cluster, ' '.join(str(coord) for coord in point)))
+                f.write('%s %s %s\n' % (idx, cluster, ' '.join(str(coord) for coord in point)))
             else:
-                f.write('%s %s\n' % (topic, ' '.join(str(coord) for coord in point)))
+                f.write('%s %s\n' % (idx, ' '.join(str(coord) for coord in point)))
+
+# numpy save/load helper
+def np_save(filename, var):
+    with open('out/numpy/%s' % filename, 'wb') as f:
+        np.save(f, var)
+
+def np_load(filename):
+    var = None
+    with open('out/numpy/%s' % filename, 'rb') as f:
+        var = np.load(f)
+    return var
+
+def get_topic_dist_cluster(n_data, n_clusters, ident=None):
+    '''
+    if ident is None, then generate a new one, else retrieve if it's previously stored or save it as ident
+    '''
+    if ident is not None:
+        path = 'store/ident/%s' % ident
+        if not os.path.exists(path):
+            os.mkdir(path)
+            with open('%s/topic_dist_values', 'wb') as f:
+                np.save(f, topic_dist_values)
+            with open('%s/dist_matrix', 'wb') as f:
+                np.save(f, dist_matrix)
+            with open('%s/clusters', 'wb') as f:
+                np.save(f, clusters)
+
+    else:
+        (topic_dist_values, dist_matrix, clusters) = sim.util.generate_data(n=n_data, dim=3, n_clusters=n_clusters)
+
+# print 3d topic dist values
+def print_topic_dist_values(topic_dist_values, clusters, subdir):
+    subdir = 'out/experiment/%s' % subdir
+    if not os.path.exists(subdir):
+        os.mkdir(subdir)
+    path = '%s/data' % subdir
+    with open(path, 'w') as f:
+        logger.info('printing topic_dist_values to %s...' % path)
+        for i, topic_dist_value in enumerate(topic_dist_values):
+            f.write('%s %s %s %s %s\n' % (i, clusters[i], topic_dist_value[0], topic_dist_value[1], topic_dist_value[2]))

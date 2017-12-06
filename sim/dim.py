@@ -1,5 +1,4 @@
 import logging
-import matplotlib.pyplot as plt
 import numpy as np
 import sim.topics
 
@@ -7,7 +6,7 @@ from sklearn.manifold import MDS
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.utils.validation import check_array
 
-logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+logger = logging.getLogger()
 seed = np.random.RandomState(seed=5) # TODO port to ini file
 
 def calc_mds(topic_dist_values):
