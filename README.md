@@ -1,35 +1,27 @@
 MDS Clique
 =========
-Run MDS-Clique, LDA, and experiments
+Generates cliques using MDS-Clique from topics extracted by LDA from a corpus.
 
 ## Prerequisites
 Uses Python 3 and various Python libraries (`gensim`, `networkx`, `scikit-learn`, etc.)
 
-## General workflow
-1. `corpus.py`
-2. `gen_topic.py`
-3. `sim.py`
-
-Run `corpus.py` (with `config.ini` filled out, see the *config.ini* section) which reads a corpus (a directory of text documents) for pre-processing (e.g. stemming and tokenization). Then execute `gen_topic.py` which uses the output artifacts of `corpus.py` in order to perform LDA topic modeling over the pre-processed corpus. Then execute `sim.py` which will either perform a specific experiment or simply execute MDS-Clique (see sections below).
-
-### Quick Start
-
-`python sim.py -dim 2 -data corpus`
-
-Generates cliques from MDS-Clique using topics extracted by LDA from a corpus specified by *config.ini*
-
-*NOTE:* you may get runtime errors, see installation procedure below, fill out *config.ini*, and try running this command again
-
 ## Installation
-1. Install Python 3
-2. Use virtualenv to create a virtual Python 3 environment within the git repository `virtualenv -p python3 venv`
-3. Activate your Python virtualenv `source venv/bin/activate` (you should now see something like `(venv)` in your console)
-4. Install the required Python libraries using, run `python sim.py` and it will tell you which libraries to install, install the Python library using `pip install <library-name>`
+1. Use virtualenv to create a virtual Python 3 environment within the git repository (`virtualenv -p python3 venv`)
+2. Activate your Python [virtualenv](https://virtualenv.pypa.io) `source venv/bin/activate` (you should now see something like `(venv)` in your console)
+3. Install the required Python libraries by running `pip install -r requirements.txt`
 
 ### Installing Relative MDS
-1. Ensure you have installed the `scikit-learn` library in your virtualenv
-2. Clone the git repository https://github.com/akbaylor/scikit-learn/tree/v0.19.0 in some other directory, checkout branch `v0.19.0`
-3. Go to that directory (ensure you are still within the same virtualenv from the previous section) and run `python setup.py build` and then `python setup.py install`, you may get build errors to ensure you install whatever Python libraries or packages it asks you to install
+1. Clone https://github.com/hateno/scikit-learn.git and go to branch `v0.19.0`
+2. Ensure you are still within the same virtualenv from the previous section and run `python setup.py build` and then `python setup.py install` (this may take a while)
+
+## Quick Start
+1. Configure `config.ini`
+2. `python corpus.py`
+3. `python gen_topic.py`
+4. `python sim.py -dim 2 -data corpus`
+
+### Detailed Explanation
+Run `corpus.py` with `config.ini` filled out (see *config.ini* section) which reads a corpus (a directory of text documents) for pre-processing (e.g. stemming and tokenization). Then execute `gen_topic.py` which uses the output artifacts of `corpus.py` in order to perform LDA topic modeling over the pre-processed corpus. Then execute `sim.py` which will either perform a specific experiment or simply execute MDS-Clique (see sections below).
 
 ## Running `sim.py`
 Execute `python sim.py --help` (make sure you are in your virtualenv) and go through the commands
@@ -67,9 +59,7 @@ Online experiment
 
 ### `config.ini`
 * `corpus`: directory to the corpus (text documents)
-	* A directory of plain text documents that will be pre-processed by `corpus.py`
-* `stopwords`: path to stopwords file
-	* Stopwords filters out certain words from the corpus so it doesn't show in the final vocabulary set, typically you will filter out common words like 'and' and 'this', used only by `corpus.py`
+	* A directory of plain text document(s) that will be pre-processed by `corpus.py`
 * `mds_seed`: set MDS `random_state`
 	* Optional, if blank the MDS algorithm (SMACOF) will start with a random configuration therefore most likely a different final result, set the seed value if you want a deterministic solution (useful for debugging), used by `sim.py`
 
@@ -77,7 +67,6 @@ Online experiment
 ```
 [Global]
 corpus = /path/to/sample-corpus/
-stopwords = /path/to/stopwords-file
 mds_seed = 7
 ```
 

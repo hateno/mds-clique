@@ -1,4 +1,4 @@
-import argparse, itertools, logging, math, os, pickle, random, shutil, sys, tvconf
+import argparse, itertools, logging, math, multiprocessing, os, pickle, random, shutil, sys, tvconf
 import numpy as np
 import sim.dim, sim.graph, sim.random, sim.relative, sim.clique, sim.online, sim.output, sim.topics, sim.util
 
@@ -12,6 +12,9 @@ from sklearn.utils.validation import check_array
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
+
+DEFAULT_SAMPLES = 8
+DEFAULT_CORES = multiprocessing.cpu_count() // 4
 
 parser = argparse.ArgumentParser(description='Perform different functions')
 parser.add_argument('-dim', type=int, required=True, help='Dimension of MDS output')
@@ -27,8 +30,8 @@ parser.add_argument('--matrix', action='store_true', help='Use a dist matrix ins
 parser.add_argument('-ident', type=str, default='', help='Store corpus and any other data in this path under this particular ident')
 
 # EXPERIMENTS
-parser.add_argument('-e', type=int, default=8, help='Number of samples to run for an experiment')
-parser.add_argument('-cores', type=int, default=os.cpu_count() // 4, help='Number of cores to run for an experiment')
+parser.add_argument('-e', type=int, default=DEFAULT_SAMPLES, help='Number of samples to run for an experiment')
+parser.add_argument('-cores', type=int, default=DEFAULT_CORES, help='Number of cores to run for an experiment')
 parser.add_argument('--relative', action='store_true', help='Perform relative MDS calculation')
 parser.add_argument('--rclique', action='store_true', help='Perform clique graph/relative MDS calculation')
 parser.add_argument('--online', action='store_true', help='Perform online (one-by-one) relative MDS calculation')

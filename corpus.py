@@ -1,11 +1,18 @@
-import logging, os, tvconf
+import logging, nltk, os, tvconf
 from gensim import corpora
 from gensim.parsing.porter import PorterStemmer
 from six import iteritems
 from nltk.stem import SnowballStemmer
 from nltk.tokenize import RegexpTokenizer
+from nltk.corpus import stopwords
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+
+nltk.download('stopwords')
+
+# make store directory
+if not os.path.exists('store/'):
+    os.mkdir('store')
 
 # read corpus
 documents = []
@@ -16,12 +23,15 @@ for doc in os.listdir(tvconf.CORPUS):
     f.close()
 
 # stoplist
+'''
 f = open(tvconf.STOPWORDS, 'r')
 stopword_file = f.read()
 f.close()
+'''
 
 stoplist = set()
-for stopword in stopword_file.split('\n'):
+#for stopword in stopword_file.split('\n'):
+for stopword in stopwords.words('english'):
     stoplist.add(stopword)
 
 # remove common words and tokenize

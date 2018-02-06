@@ -21,7 +21,7 @@ class Clique:
         self.index = index
         self.clique_stress_values = []
         self.args = args
-        self.N_PROCESS = os.cpu_count() // 4
+        self.N_PROCESS = mp.cpu_count() // 4
         if ident is not None:
             self.ident = '%s_clique' % ident
 

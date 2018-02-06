@@ -1,4 +1,5 @@
 import logging, os
+import multiprocessing as mp
 import networkx as nx
 import numpy as np
 import sim.topics, sim.relative
@@ -24,7 +25,7 @@ class MGraph:
         self.approximation = approximation
         self.edge_data = dict()
         self.parallel = parallel
-        self.N_PROCESS = os.cpu_count() // 8
+        self.N_PROCESS = mp.cpu_count() // 8
 
         # generate graph M
         self.M = nx.Graph()
@@ -214,7 +215,7 @@ class MGraph:
         Mp = M.copy()
         old_num_edges = len(Mp.edges())
         if self.parallel:
-            N_PROCESS = os.cpu_count() // 2
+            N_PROCESS = mp.cpu_count() // 2
             pool = ThreadPool(self.N_PROCESS)
             pargs = [(edge, comparator, k, Mp) for edge in M.edges()]
             pool.starmap(self.parallel_remove_edges_helper, pargs)

@@ -109,7 +109,7 @@ def dissim(topics, replot=None, ident=None, index=None):
     n = len(topics)
     shared_list = np.zeros([n, n])
 
-    p = ThreadPool(os.cpu_count() // 2)
+    p = ThreadPool(mp.cpu_count() // 2)
     func = partial(calc_distance, topics, n, shared_list)
     p.map(func, range(n))
     p.close()
@@ -185,7 +185,7 @@ def list_stress_points(dist_matrix, eucl_matrix, ident=None, parallel=False):
                 stress = math.fabs((dist - eucl) / eucl)
                 points_stress.append((i, j, stress))
     else:
-        N_PROCESS = os.cpu_count() // 2
+        N_PROCESS = mp.cpu_count() // 2
         mpoints_stress = []
         pool = ThreadPool(N_PROCESS)
         pargs = [(i, mpoints_stress, dist_matrix, eucl_matrix) for i in range(N)]
