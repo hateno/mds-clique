@@ -15,7 +15,8 @@ logger.setLevel(logging.DEBUG)
 
 parser = argparse.ArgumentParser(description='Perform different functions')
 parser.add_argument('-dim', type=int, required=True, help='Dimension of MDS output')
-parser.add_argument('-data', choices=['corpus', 'random', 'none'], default='random', required=True, help='Specify input data to use')
+parser.add_argument('-data', choices=['corpus', 'random', 'text', 'none'], default='random', required=True, help='Specify input data to use')
+parser.add_argument('-textfile', type=str, help='Specify path to textfile dissimilarity (triangle) matrix, used with `-data text`')
 parser.add_argument('-n', type=int, default=100, help='Number of randomly generated topics, used in conjunction with -data=random')
 parser.add_argument('-ndim', type=int, default=3, help='Used with -data=random, the dimension of the randomly generated points')
 parser.add_argument('-clusters', type=int, default=3, help='Number of clusters to extract')
@@ -56,6 +57,10 @@ if args.data != 'none':
 
     elif args.data == 'random':
         topic_dist_values, dist_matrix, clusters = sim.util.generate_data(n=args.n, ndim=args.ndim, n_clusters=args.clusters, ident=args.ident, matrix=args.matrix)
+
+    elif args.data == 'text':
+        (topic_dist_values, dist_matrix) = sim.util.read_textfile(args.textfile)
+        clusters = [0 for _ in range(len(topic_dist_values))] # TODO
 
 ### RUN MDS ###
 if args.relative: # relative mds

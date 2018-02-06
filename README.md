@@ -44,6 +44,13 @@ Use extracted LDA topics and run MDS-Clique using the distance measure, write cl
 Run the RMDS experiment, set `-data none` since each sample will generate its own random data set
 `python sim.py -dim 2 -data none --matrix -clique stress --rmds`
 
+### Data `text`
+Specify your own dissimilarity matrix in a text file. For now, specify it as a triangular dissimilarity matrix or a symmetric matrix.
+
+`python sim.py -dim 2 -data text -textfile /path/to/matrix/textfile`
+
+Note, cluster support is not yet present.
+
 ### Running Experiments
 Each experiment is denoted with a flag `--<experiment_codename>`, by default an experiment will run 8 samples, you can manually specify number of samples with `-e <num_samples>`, and utilize 1/4 of the max cores available on the system, you can manually specify number of cores with `-c <num_cores>`
 

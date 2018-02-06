@@ -1,4 +1,4 @@
-import hashlib, math, logging, pickle, os
+import hashlib, math, logging, pickle, os, sys
 import numpy as np
 
 import sim.random, sim.relative, sim.clique, sim.topics
@@ -512,3 +512,29 @@ def index_train_test_split(topic_dist_values, clusters):
     train_clusters = np.array([clusters[i] for i in train_index])
     test_clusters = np.array([clusters[i] for i in test_index])
     return train_data, train_index, test_data, test_index, train_clusters, test_clusters
+
+def read_textfile(filepath):
+    lines = []
+    with open(filepath, 'r') as f:
+        lines = [[float(char) for char in line.rstrip('\n').split(' ')] for line in f.readlines()]
+    length = len(lines)
+    n = 1
+    matrix = np.zeros([length, length])
+    is_triangle = False
+
+    for line in lines: # check proper matrix
+        if len(line) != length:
+            if len(line) != n:
+                logger.error('Import text dissimilarity failed, need to either be proper matrix or triangle matrix')
+                sys.exit()
+            is_triangle = True
+        n += 1
+
+    for i_row, row in enumerate(lines):
+        for i_col, col in enumerate(row):
+            matrix[i_row][i_col] = col
+            if is_triangle:
+                matrix[i_col][i_row] = col
+
+    dummy = [(None, matrix) for _ in range(length)] # hack solution
+    return (dummy, matrix)
