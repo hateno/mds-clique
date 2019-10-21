@@ -13,7 +13,7 @@ gensim==3.4.0
 idna==2.6
 jmespath==0.9.3
 networkx==2.1
-nltk==3.2.5
+nltk==3.4.5
 numpy==1.14.2
 python-dateutil==2.6.1
 requests==2.18.4
